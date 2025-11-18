@@ -1,0 +1,50 @@
+# RQ-VAE配置文件
+
+# 数据配置
+data:
+  embedding_dim: 512  # 输入embedding维度
+  batch_size: 512
+  shuffle: true
+  num_workers: 4
+  train_split: 0.8  # 训练集比例
+  val_split: 0.1    # 验证集比例
+  test_split: 0.1   # 测试集比例
+
+# 模型配置
+model:
+  # 编码器配置
+  encoder:
+    hidden_dims: [512, 256, 128]
+    activation: "relu"
+    dropout: 0.1
+  
+  # 解码器配置
+  decoder:
+    hidden_dims: [128, 256, 512]
+    activation: "relu"
+    dropout: 0.1
+  
+  # 量化器配置
+  quantizer:
+    num_codebooks: 8      # 码本数量
+    codebook_size: 256    # 每个码本的大小
+    latent_dim: 32        # 潜在空间维度
+    commitment_cost: 0.25 # 承诺损失权重
+    decay: 0.99           # EMA衰减率
+
+# 训练配置
+training:
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  betas: [0.9, 0.999]
+  num_epochs: 100
+  patience: 10           # 早停耐心值
+  device: "cuda"         # "cuda"或"cpu"
+  checkpoint_dir: "./checkpoints"
+  log_dir: "./logs"
+  save_interval: 10      # 每10个epoch保存一次模型
+
+# SID提取配置
+sid_extraction:
+  top_k: 100             # 生成推荐时的top-k
+  temperature: 0.7       # 采样温度
