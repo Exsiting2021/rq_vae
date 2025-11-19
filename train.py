@@ -38,13 +38,13 @@ def parse_args():
                         help='配置文件路径')
     parser.add_argument('--resume', type=str, default=None, 
                         help='从指定的检查点恢复训练')
-    parser.add_argument('--data-dir', '--data_dir', type=str, default=None, 
+    parser.add_argument('--data_dir', type=str, default=None, 
                         help='数据目录路径，覆盖配置文件中的设置')
-    parser.add_argument('--output-dir', '--output_dir', type=str, default='outputs', 
+    parser.add_argument('--output_dir', type=str, default='outputs', 
                         help='输出目录路径')
-    parser.add_argument('--large-scale', action='store_true', 
+    parser.add_argument('--large_scale', action='store_true', 
                         help='使用大规模数据加载器')
-    parser.add_argument('--load-item-ids', action='store_true', 
+    parser.add_argument('--load_item_ids', action='store_true', 
                         help='从数据文件中加载item ids')
     return parser.parse_args()
 
