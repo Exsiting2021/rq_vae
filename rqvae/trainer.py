@@ -84,7 +84,6 @@ class Trainer:
             mode='min',
             factor=0.5,
             patience=5,
-            verbose=True,
             min_lr=1e-6
         )
         
@@ -137,17 +136,17 @@ class Trainer:
             
             self.optimizer.step()
             
-            # 更新统计信息
-            total_loss += loss.item()
-            total_recon_loss += recon_loss.item()
-            total_quant_loss += quantization_loss.item()
+            # 更新统计信息，处理loss可能已经是浮点数的情况
+            total_loss += loss.item() if hasattr(loss, 'item') else loss
+            total_recon_loss += recon_loss.item() if hasattr(recon_loss, 'item') else recon_loss
+            total_quant_loss += quantization_loss.item() if hasattr(quantization_loss, 'item') else quantization_loss
             num_batches += 1
             
-            # 更新进度条
+            # 更新进度条，处理可能是浮点数的情况
             progress_bar.set_postfix({
-                'loss': loss.item(),
-                'recon_loss': recon_loss.item(),
-                'quant_loss': quantization_loss.item()
+                'loss': loss.item() if hasattr(loss, 'item') else loss,
+                'recon_loss': recon_loss.item() if hasattr(recon_loss, 'item') else recon_loss,
+                'quant_loss': quantization_loss.item() if hasattr(quantization_loss, 'item') else quantization_loss
             })
         
         # 计算平均损失
@@ -193,17 +192,17 @@ class Trainer:
                 # 总损失 = 重建损失 + 量化损失
                 loss = recon_loss + quantization_loss
                 
-                # 更新统计信息
-                total_loss += loss.item()
-                total_recon_loss += recon_loss.item()
-                total_quant_loss += quantization_loss.item()
+                # 更新统计信息，处理loss可能已经是浮点数的情况
+                total_loss += loss.item() if hasattr(loss, 'item') else loss
+                total_recon_loss += recon_loss.item() if hasattr(recon_loss, 'item') else recon_loss
+                total_quant_loss += quantization_loss.item() if hasattr(quantization_loss, 'item') else quantization_loss
                 num_batches += 1
                 
-                # 更新进度条
+                # 更新进度条，处理可能是浮点数的情况
                 progress_bar.set_postfix({
-                    'loss': loss.item(),
-                    'recon_loss': recon_loss.item(),
-                    'quant_loss': quantization_loss.item()
+                    'loss': loss.item() if hasattr(loss, 'item') else loss,
+                    'recon_loss': recon_loss.item() if hasattr(recon_loss, 'item') else recon_loss,
+                    'quant_loss': quantization_loss.item() if hasattr(quantization_loss, 'item') else quantization_loss
                 })
         
         # 计算平均损失

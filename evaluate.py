@@ -37,23 +37,23 @@ def parse_args():
     解析命令行参数
     """
     parser = argparse.ArgumentParser(description='评估RQ-VAE模型')
-    parser.add_argument('--model-path', type=str, required=True,
+    parser.add_argument('--model_path', type=str, required=True,
                         help='训练好的模型路径')
     parser.add_argument('--config', type=str, default=None,
                         help='配置文件路径')
-    parser.add_argument('--data-dir', type=str, required=True,
+    parser.add_argument('--data_dir', type=str, required=True,
                         help='测试数据目录路径')
-    parser.add_argument('--batch-size', type=int, default=1024,
+    parser.add_argument('--batch_size', type=int, default=1024,
                         help='批次大小')
-    parser.add_argument('--num-workers', type=int, default=4,
+    parser.add_argument('--num_workers', type=int, default=4,
                         help='数据加载器的工作线程数')
-    parser.add_argument('--large-scale', action='store_true',
+    parser.add_argument('--large_scale', action='store_true',
                         help='使用大规模数据加载器')
-    parser.add_argument('--output-dir', type=str, default='evaluation_results',
+    parser.add_argument('--output_dir', type=str, default='evaluation_results',
                         help='评估结果输出目录')
     parser.add_argument('--visualize', action='store_true',
                         help='生成可视化结果')
-    parser.add_argument('--sample-size', type=int, default=1000,
+    parser.add_argument('--sample_size', type=int, default=1000,
                         help='用于可视化的样本数量')
     return parser.parse_args()
 
@@ -196,8 +196,8 @@ def main():
     os.makedirs(os.path.join(output_dir, 'visualizations'), exist_ok=True)
     
     # 设置日志
-    logger = setup_logger('RQVAE-Evaluator', 
-                         log_file=os.path.join(output_dir, 'evaluation.log'))
+    logger = setup_logger(log_dir=output_dir, 
+                         log_name='RQVAE-Evaluator')
     
     # 打印评估信息
     logger.info('开始评估RQ-VAE模型')
@@ -224,25 +224,32 @@ def main():
             }
         }
         
+        # 构建完整的配置字典
+        config = {
+            'data': {
+                'batch_size': args.batch_size,
+                'shuffle': eval_config['data']['shuffle'],
+                'num_workers': eval_config['data']['num_workers'],
+                'embedding_dim': 768,  # 默认嵌入维度，可能需要根据实际数据调整
+                'train_split': 1.0 - eval_config['data']['val_split'] - eval_config['data']['test_split'],
+                'val_split': eval_config['data']['val_split'],
+                'test_split': eval_config['data']['test_split']
+            }
+        }
+        
         if args.large_scale:
+            # 将单个数据路径包装成列表传递给large_scale_dataloaders
             train_loader, _, _ = create_large_scale_dataloaders(
-                data_dir=eval_config['data']['data_dir'],
-                batch_size=args.batch_size,
-                num_workers=eval_config['data']['num_workers'],
-                val_split=eval_config['data']['val_split'],
-                test_split=eval_config['data']['test_split'],
-                shuffle=eval_config['data']['shuffle'],
-                pin_memory=eval_config['data']['pin_memory']
+                data_paths=[eval_config['data']['data_dir']],  # 单个路径包装成列表
+                config=config,
+                transform=None
             )
         else:
             train_loader, _, _ = create_dataloaders(
-                data_dir=eval_config['data']['data_dir'],
-                batch_size=args.batch_size,
-                num_workers=eval_config['data']['num_workers'],
-                val_split=eval_config['data']['val_split'],
-                test_split=eval_config['data']['test_split'],
-                shuffle=eval_config['data']['shuffle'],
-                pin_memory=eval_config['data']['pin_memory']
+                data_path=eval_config['data']['data_dir'],
+                config=config,
+                is_memory_mapped=False,
+                transform=None
             )
         
         # 由于不分割，train_loader实际上包含所有数据
@@ -259,10 +266,13 @@ def main():
         model = extractor.model
         
         # 获取模型配置
-        embedding_dim = model.embedding_dim
-        latent_dim = model.latent_dim
-        num_codebooks = model.quantizer.num_codebooks
-        codebook_size = model.quantizer.codebook_size
+        # 注意：RQVAE模型使用input_dim表示嵌入维度
+        embedding_dim = getattr(model, 'input_dim', 512)  # 默认512
+        latent_dim = getattr(model, 'latent_dim', 32)  # 默认32
+        # 安全访问quantizer属性
+        quantizer = getattr(model, 'quantizer', None)
+        num_codebooks = getattr(quantizer, 'num_codebooks', 8) if quantizer else 8  # 默认8
+        codebook_size = getattr(quantizer, 'codebook_size', 256) if quantizer else 256  # 默认256
         
         logger.info(f'模型配置: 嵌入维度={embedding_dim}, 潜在维度={latent_dim}, '
                    f'码本数量={num_codebooks}, 码本大小={codebook_size}')

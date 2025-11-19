@@ -32,7 +32,8 @@ class ResidualVectorQuantizer(nn.Module):
         
         # 初始化EMA参数（用于非训练模式下的码本更新）
         self.register_buffer('cluster_size', torch.zeros(num_codebooks, codebook_size))
-        self.register_buffer('embed_avg', torch.zeros_like(torch.stack(self.codebooks, dim=0)))
+        # 将ParameterList转换为张量元组后再使用stack函数
+        self.register_buffer('embed_avg', torch.zeros_like(torch.stack(tuple(self.codebooks), dim=0)))
     
     def forward(self, z):
         """

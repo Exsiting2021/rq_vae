@@ -49,33 +49,118 @@ def load_rqvae_model(model_path: str, config_path: Optional[str] = None) -> RQVA
         
         config = load_config(config_path)
     
-    # 创建模型实例
-    model = RQVAE(
-        embedding_dim=config['model']['embedding_dim'],
-        latent_dim=config['model']['latent_dim'],
-        num_codebooks=config['model']['num_codebooks'],
-        codebook_size=config['model']['codebook_size'],
-        encoder_hidden_dims=config['model']['encoder_hidden_dims'],
-        decoder_hidden_dims=config['model']['decoder_hidden_dims'],
-        activation=config['model']['activation'],
-        dropout=config['model']['dropout'],
-        commitment_cost=config['model']['commitment_cost'],
-        codebook_weight=config['model']['codebook_weight'],
-        use_ema=config['model']['use_ema'],
-        ema_decay=config['model']['ema_decay']
-    ).to(device)
+    # 确保配置结构符合RQVAE.load期望的格式
+    # RQVAE.load期望的格式: config['model']['encoder'], config['model']['decoder'], config['model']['quantizer']
+    # 如果配置结构不是嵌套的，需要将其转换为嵌套格式
+    if 'model' in config:
+        model_config = config['model']
+        # 确保encoder, decoder和quantizer子配置存在
+        if 'encoder' not in model_config:
+            # 创建encoder子配置
+            model_config['encoder'] = {
+                'hidden_dims': model_config.get('encoder_hidden_dims', [512, 256, 128]),
+                'activation': model_config.get('activation', 'relu'),
+                'dropout': model_config.get('dropout', 0.1)
+            }
+        
+        if 'decoder' not in model_config:
+            # 创建decoder子配置
+            model_config['decoder'] = {
+                'hidden_dims': model_config.get('decoder_hidden_dims', [128, 256, 512])
+            }
+        
+        if 'quantizer' not in model_config:
+            # 创建quantizer子配置
+            model_config['quantizer'] = {
+                'latent_dim': model_config.get('latent_dim', 32),
+                'num_codebooks': model_config.get('num_codebooks', 8),
+                'codebook_size': model_config.get('codebook_size', 256),
+                'commitment_cost': model_config.get('commitment_cost', 0.25),
+                'decay': model_config.get('decay', 0.99)
+            }
     
-    # 加载模型权重
-    checkpoint = torch.load(model_path, map_location=device)
+    # 加载检查点
+    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
     
-    # 检查是否是完整的训练器检查点
-    if 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-    else:
-        # 假设直接是模型状态字典
-        model.load_state_dict(checkpoint)
+    # 创建模型实例 - 由于RQVAE.load类方法需要直接的模型权重文件而非完整检查点
+    # 我们直接创建模型实例并手动加载权重
+    try:
+        # 获取模型配置
+        model_config = config['model']
+        
+        # 创建模型实例
+        model = RQVAE(
+            input_dim=model_config.get('input_dim', 512),
+            encoder_hidden_dims=model_config['encoder'].get('hidden_dims', [512, 256, 128]),
+            decoder_hidden_dims=model_config['decoder'].get('hidden_dims', [128, 256, 512]),
+            latent_dim=model_config['quantizer'].get('latent_dim', 32),
+            num_codebooks=model_config['quantizer'].get('num_codebooks', 8),
+            codebook_size=model_config['quantizer'].get('codebook_size', 256),
+            commitment_cost=model_config['quantizer'].get('commitment_cost', 0.25),
+            decay=model_config['quantizer'].get('decay', 0.99),
+            activation=model_config['encoder'].get('activation', 'relu'),
+            dropout=model_config['encoder'].get('dropout', 0.1)
+        ).to(device)
+        
+        # 处理完整检查点格式
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            # 尝试直接加载（如果是只包含模型权重的文件）
+            model.load_state_dict(checkpoint)
+    except Exception as e:
+        # 如果出错，尝试另一种方式创建模型
+        # 直接使用配置中的参数（更宽松的错误处理）
+        model_config = config['model']
+        
+        # 提取必要参数，使用默认值避免类型错误
+        input_dim = int(model_config.get('input_dim', 512))
+        
+        # 处理encoder_hidden_dims，确保是列表
+        encoder_hidden_dims = model_config.get('encoder_hidden_dims', [512, 256, 128])
+        if isinstance(encoder_hidden_dims, dict):
+            encoder_hidden_dims = [int(encoder_hidden_dims.get(k, 512)) for k in sorted(encoder_hidden_dims.keys())]
+        else:
+            encoder_hidden_dims = [int(dim) for dim in encoder_hidden_dims]
+        
+        # 处理decoder_hidden_dims，确保是列表
+        decoder_hidden_dims = model_config.get('decoder_hidden_dims', [128, 256, 512])
+        if isinstance(decoder_hidden_dims, dict):
+            decoder_hidden_dims = [int(decoder_hidden_dims.get(k, 512)) for k in sorted(decoder_hidden_dims.keys())]
+        else:
+            decoder_hidden_dims = [int(dim) for dim in decoder_hidden_dims]
+        
+        # 提取其他参数，确保类型正确
+        latent_dim = int(model_config.get('latent_dim', 32))
+        num_codebooks = int(model_config.get('num_codebooks', 8))
+        codebook_size = int(model_config.get('codebook_size', 256))
+        commitment_cost = float(model_config.get('commitment_cost', 0.25))
+        decay = float(model_config.get('decay', 0.99))
+        activation = str(model_config.get('activation', 'relu'))
+        dropout = float(model_config.get('dropout', 0.1))
+        
+        # 创建模型实例
+        model = RQVAE(
+            input_dim=input_dim,
+            encoder_hidden_dims=encoder_hidden_dims,
+            decoder_hidden_dims=decoder_hidden_dims,
+            latent_dim=latent_dim,
+            num_codebooks=num_codebooks,
+            codebook_size=codebook_size,
+            commitment_cost=commitment_cost,
+            decay=decay,
+            activation=activation,
+            dropout=dropout
+        ).to(device)
+        
+        # 处理完整检查点格式
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            # 尝试直接加载（如果是只包含模型权重的文件）
+            model.load_state_dict(checkpoint)
     
-    # 设置为评估模式
+    # 确保模型处于评估模式
     model.eval()
     
     return model
@@ -103,8 +188,9 @@ class SIDExtractor:
         self.device = next(self.model.parameters()).device
         
         # 获取模型配置
-        self.embedding_dim = self.model.embedding_dim
-        self.latent_dim = self.model.latent_dim
+        # 注意：RQVAE模型使用input_dim表示嵌入维度
+        self.embedding_dim = getattr(self.model, 'input_dim', 512)  # 默认512
+        self.latent_dim = getattr(self.model, 'latent_dim', 32)  # 默认32
         self.num_codebooks = self.model.quantizer.num_codebooks
         self.codebook_size = self.model.quantizer.codebook_size
         
@@ -336,19 +422,23 @@ class SIDExtractor:
         """
         os.makedirs(output_dir, exist_ok=True)
         
-        # 获取码本
-        codebooks = self.model.quantizer.codebooks.cpu().numpy()
+        # 处理ParameterList类型的码本
+        codebook_params = self.model.quantizer.codebooks
         
         # 保存每个码本
-        for i in range(self.num_codebooks):
+        for i in range(len(codebook_params)):
+            # 单独转换每个参数为numpy数组，使用detach()分离梯度
+            codebook = codebook_params[i].detach().cpu().numpy()
             codebook_path = os.path.join(output_dir, f'codebook_{i}.npy')
-            np.save(codebook_path, codebooks[i])
+            np.save(codebook_path, codebook)
             self.logger.info(f"码本 {i} 已保存到: {codebook_path}")
         
-        # 保存所有码本
+        # 保存所有码本为列表，使用detach()分离梯度
+        all_codebooks = [codebook_params[i].detach().cpu().numpy() for i in range(len(codebook_params))]
         all_codebooks_path = os.path.join(output_dir, 'all_codebooks.npy')
-        np.save(all_codebooks_path, codebooks)
+        np.save(all_codebooks_path, all_codebooks)
         self.logger.info(f"所有码本已保存到: {all_codebooks_path}")
+        self.logger.info(f"共导出 {len(codebook_params)} 个码本")
 
 # 示例使用函数
 def extract_sids_from_embeddings_file(model_path: str, embeddings_file: str, 

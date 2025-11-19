@@ -6,6 +6,10 @@ from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
 import torch
 
+# 设置matplotlib支持中文
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']  # 用来正常显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+
 def plot_training_history(history, save_path=None):
     """
     绘制训练历史曲线
